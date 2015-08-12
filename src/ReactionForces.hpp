@@ -11,7 +11,7 @@
 
 #include <iostream>
 
-namespace dynamics
+namespace exoter_dynamics
 {
     static const size_t NUMBER_OF_WHEELS = 6; //rover number of wheels
     static const size_t NUMBER_OF_FEET = 1; //contact points per wheel
@@ -28,11 +28,19 @@ namespace dynamics
 
     class ReactionForces
     {
-    public:
-       ReactionForces();
+
     public:
 
-        static void forceAnalysis (const base::Vector3d &centerOfMass,
+        Eigen::Vector3d left_passive_offset, right_passive_offset;
+
+    public:
+
+        ReactionForces(Eigen::Vector3d &_left_passive, Eigen::Vector3d &_right_passive):
+            left_passive_offset(_left_passive), right_passive_offset(_right_passive) {};
+
+    public:
+
+        void forceAnalysis (const base::Vector3d &centerOfMass,
                 const std::vector< Eigen::Matrix<double, 3, 1>, Eigen::aligned_allocator < Eigen::Matrix<double, 3, 1> > > &footPosition,
                 const Eigen::Quaterniond &orient,
                 const double gravity,
@@ -51,8 +59,8 @@ namespace dynamics
 
             /** Attitude **/
             attitude = Eigen::Quaterniond(Eigen::AngleAxisd(euler[2], Eigen::Vector3d::UnitZ())*
-                Eigen::AngleAxisd(euler[1], Eigen::Vector3d::UnitY()) *
-                Eigen::AngleAxisd(euler[0], Eigen::Vector3d::UnitX()));
+                Eigen::AngleAxisd(-euler[1], Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(-euler[0], Eigen::Vector3d::UnitX()));
 
             /** Attitude in rotation matrix form **/
             std::cout<<"R:\n"<<attitude.toRotationMatrix()<<"\n";
@@ -76,12 +84,15 @@ namespace dynamics
                 /** Cross product to compute the torque **/
                 Eigen::Vector3d torque = (*it).cross(r);
 
+                Eigen::Vector3d torque_n1 = (*it - this->left_passive_offset).cross(r);
+                Eigen::Vector3d torque_n2 = (*it - this->right_passive_offset).cross(r);
+
                 /** Take the z elements **/
                 A(1,k) = torque[0];// Constraint 1: Torque along X in wheels [0..3] is zero [-r0x, -r1x, -r2x, -r3x, -r4x, -r5x] (we will change the two last element to zero afterwards)
-                A(2,k) = torque[1];// Constraint 2: Torque along Y in wheels [0,2] is zero
-                A(3,k) = torque[1];// Constraint 3: Torque along Y in wheels [1,3] is zero
+                A(2,k) = torque_n1[1];// Constraint 2: Torque along Y in wheels [0,2] is zero
+                A(3,k) = torque_n2[1];// Constraint 3: Torque along Y in wheels [1,3] is zero
                 A(4,k) = torque[0];// Constraint 4: Torque along X in wheels [4,5] is zero
-                A(5,k) = torque[1];// Constraint 5: Torque along Y for all wheels is zero
+                A(5,k) = torque[1];// Constraint 5: Torque along Y in wheels is zero
 
                 k++;
             }
@@ -128,7 +139,7 @@ namespace dynamics
             Eigen::Vector3d r = attitude.toRotationMatrix().col(2);
             std::cout<<"r vector:\n"<<r<<"\n";
 
-            /** First row is all ones: Constraint 1 [1, 1, 1, 1, 1, 1] **/
+            /** First row is all ones: Constraint 1 [1, 1, 1, 1] **/
             A.row(0).setOnes();
 
             /** b vector **/
@@ -142,13 +153,18 @@ namespace dynamics
 
                 std::cout<<"*it:\n"<<*it<<"\n";
 
-                /** Cross product to compute the torque **/
-                Eigen::Vector3d torque = (*it).cross(r);
+                /** Rotate to the world fixed frame (inertial frame) **/
+                *it = attitude * (*it);
+
+                Eigen::Matrix3d cross2product; /** Crossproduct  matrix */
+                cross2product << 0, -(*it)(2), (*it)(1),
+                                 (*it)(2), 0, -(*it)(0),
+                                 -(*it)(1), (*it)(0), 0;
 
                 /** Take the z elements **/
-                A(1,k) = torque[1];// Constraint 2: Torque along Y is zero
-                A(2,k) = torque[0];// Constraint 3: Torque along X in wheels [0,1] is zero
-                A(3,k) = torque[0];// Constraint 4: Torque along X in wheels [2,3] is zero
+                A(1,k) = cross2product(1,2);//! Constraint 2: Torque along Y is zero [-r0x, -r1x, -r2x, -r3x]
+                A(2,k) = cross2product(0,2);//! Constraint 3: Torque along X is zero for the first body (front part of Asguard)
+                A(3,k) = cross2product(0,2);//! Constraint 4: Torque along X is zero for the second body (rear part of Asguard)
 
                 k++;
             }
