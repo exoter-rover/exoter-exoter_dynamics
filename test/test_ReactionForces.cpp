@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_CASE(test_for_reaction_forces)
     centerOfMass.setZero();
     centerOfMass << 0.0, 0.0, 0.00;
     euler.setZero();
-    euler[1] = -25.00 * D2R;
+    euler[0] = 0.00 * D2R;
 
     orientation = Eigen::Quaterniond(Eigen::AngleAxisd(euler[2], Eigen::Vector3d::UnitZ())*
         Eigen::AngleAxisd(euler[1], Eigen::Vector3d::UnitY()) *
