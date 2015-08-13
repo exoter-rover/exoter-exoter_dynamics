@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_CASE(test_for_reaction_forces)
     centerOfMass.setZero();
     centerOfMass << 0.0, 0.0, 0.00;
     euler.setZero();
-    euler[0] = 0.00 * D2R;
+    euler[1] = -25.00 * D2R;
 
     orientation = Eigen::Quaterniond(Eigen::AngleAxisd(euler[2], Eigen::Vector3d::UnitZ())*
         Eigen::AngleAxisd(euler[1], Eigen::Vector3d::UnitY()) *
@@ -33,9 +33,9 @@ BOOST_AUTO_TEST_CASE(test_for_reaction_forces)
     chainPosition[5] << -1.0, -1.0, -1.0;
 
     /** Create Reaction forces object **/
-    Eigen::Vector3d left_offset, right_offset;
-    left_offset << 0.5, 0.5, 0.0; right_offset << 0.5, -0.5, 0.0;
-    ::exoter_dynamics::ReactionForces rf(left_offset, right_offset);
+    Eigen::Vector3d passive_offset;
+    passive_offset << 0.5, 0.0, 0.0;
+    ::exoter_dynamics::ReactionForces rf(passive_offset);
 
     /** Compute reaction forces **/
     rf.forceAnalysis(centerOfMass, chainPosition, orientation, 1.0, forces);
